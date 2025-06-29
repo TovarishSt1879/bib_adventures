@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Визуальная новелла</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Анимация затемнения */
+        .fade-out {
+            animation: fadeOut 1s forwards;
+        }
+        .fade-in {
+            animation: fadeIn 1s forwards;
+        }
+        @keyframes fadeOut {
+            from {opacity: 1;}
+            to {opacity: 0;}
+        }
+        @keyframes fadeIn {
+            from {opacity: 0;}
+            to {opacity: 1;}
+        }
+
+        /* Стили для персонажей согласно рамкам */
+        #left-character {
+            width: 30vw;
+            height: 100vh;
+            max-width: 30vw;
+            max-height: 100vh;
+            object-fit: contain;
+            transition: opacity 0.3s ease;
+        }
+
+        #right-character {
+            width: 30vw;
+            height: 100vh;
+            max-width: 30vw;
+            max-height: 100vh;
+            object-fit: contain;
+            transition: opacity 0.3s ease;
+        }
+
+        /* Классы для управления видимостью */
+        .character-hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .character-visible {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        /* Окно сообщений */
+        #text-box {
+            width: 30vw;
+            height: 20vh;
+            max-width: 30vw;
+            max-height: 20vh;
+        }
+
+        /* Стили для disclaimer */
+        #disclaimer {
+            position: fixed;
+            bottom: 2vh;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 30vw;
+            max-width: 400px;
+            color: white;
+            text-align: center;
+            font-size: 0.75rem;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 0.5rem;
+            border-radius: 0.25rem;
+            z-index: 5;
+            pointer-events: none; /* Не мешает взаимодействию с другими элементами */
+            opacity: 0.8;
+        }
+
+        /* Адаптивность для мобильных устройств */
+        @media (max-width: 768px) {
+            #left-character, #right-character {
+                width: 35vw;
+                height: 40vh;
+                max-width: 35vw;
+                max-height: 40vh;
+            }
+            
+            #text-box {
+                width: 80vw;
+                height: 25vh;
+                max-width: 80vw;
+                max-height: 25vh;
+            }
+
+            #disclaimer {
+                width: 80vw;
+                font-size: 0.6rem;
+                bottom: 1vh;
+            }
+        }
+    </style>
+</head>
+<body class="bg-gray-900 flex items-center justify-center min-h-screen">
+    <button id="start-button" class="bg-black bg-opacity-80 text-white px-6 py-3 rounded-lg text-xl hover:bg-opacity-90 transition z-10 absolute">Играть</button>
+
+    <section id="game-container" class="hidden relative min-h-screen w-full">
+        <!-- Фоновое изображение на весь экран -->
+        <div id="background-container" class="fixed inset-0 z-0">
+            <img id="background-image" src="" alt="Фон" class="w-full h-full object-cover">
+            <div id="fade-overlay" class="fixed inset-0 bg-black opacity-0 pointer-events-none transition-opacity duration-1000"></div>
+        </div>
+
+        <!-- Игровой интерфейс -->
+        <div class="relative z-10 w-full h-full flex flex-col absolute">
+            <!-- Контейнер персонажей в верхней части -->
+            <div id="characters-container" class="flex justify-between items-end flex-1 px-4 pb-4">
+                <img id="left-character" src="" alt="Главный персонаж" class="character-hidden">
+                <div class="flex flex-col items-center">
+                    <!-- Кнопки управления -->
+                    <div class="flex gap-4 mb-4">
+                        <button id="next-button" class="bg-black bg-opacity-50 text-white px-6 py-2 rounded hover:bg-opacity-70 transition">Вперёд</button>
+                        <button id="inventory-button" class="bg-black bg-opacity-50 text-white px-6 py-2 rounded hover:bg-opacity-70 transition">Инвентарь</button>
+                    </div>
+                    
+                    <!-- Окно сообщений -->
+                    <div id="text-box" class="bg-black bg-opacity-80 text-white rounded p-4 flex flex-col justify-center items-center text-center">
+                        <p id="message-text" class="text-lg"></p>
+                    </div>
+                </div>
+                <img id="right-character" src="" alt="Персонаж собеседник" class="character-hidden">
+            </div>
+        </div>
+    </section>
+
+    <!-- Модальное окно инвентаря -->
+    <div id="inventory" class="hidden fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50">
+        <div class="bg-gray-800 text-white p-6 rounded-lg max-w-md w-full mx-4 max-h-96 overflow-y-auto">
+            <h2 class="text-2xl mb-4 font-bold">Инвентарь</h2>
+            <ul id="inventory-list" class="list-disc pl-5 mb-4">
+                <li>Барсетка, где есть всё на свете</li>
+                <li>Липтон</li>
+                <li>Фото Оганеса</li>
+            </ul>
+            <button id="close-inventory" class="w-full bg-red-600 px-4 py-2 rounded-lg hover:bg-red-700 transition">Закрыть</button>
+        </div>
+    </div>
+
+    <!-- Disclaimer текст -->
+    <div id="disclaimer">
+        Автор осуждает любые экстремистские идеологии, а также употребление наркотиков, игра не несёт цели никого оскорбить, всё создано исключительно в юмористических целях
+    </div>
+    <script>
+        const startButton = document.getElementById('start-button');
+        const gameContainer = document.getElementById('game-container');
+        const backgroundImage = document.getElementById('background-image');
+        const fadeOverlay = document.getElementById('fade-overlay');
+        const messageText = document.getElementById('message-text');
+        const nextButton = document.getElementById('next-button');
+        const inventoryButton = document.getElementById('inventory-button');
+        const inventory = document.getElementById('inventory');
+        const closeInventory = document.getElementById('close-inventory');
+        const leftCharacter = document.getElementById('left-character');
+        const rightCharacter = document.getElementById('right-character');
+		// Переменная для хранения текущего аудио
+		let currentMusic = null;
+
+		// Улучшенная функция для воспроизведения музыки
+		function playMusic(musicPath, volume = 0.5, repeat = true) {
+			console.log(`Запускаем музыку: ${musicPath}, repeat: ${repeat}`);
+			
+			// Останавливаем предыдущую композицию, если она играет
+			if (currentMusic) {
+				currentMusic.pause();
+				currentMusic.currentTime = 0;
+				currentMusic = null;
+				console.log('Предыдущая композиция остановлена');
+			}
+			
+			// Создаем новый аудио элемент
+			currentMusic = new Audio(musicPath);
+			currentMusic.loop = repeat; // Устанавливаем циклическое воспроизведение
+			currentMusic.volume = volume;
+			
+			// Запускаем новую композицию
+			currentMusic.play().catch(error => {
+				console.log('Ошибка воспроизведения музыки:', error);
+			});
+			
+			console.log(`Композиция ${musicPath} теперь играет, repeat: ${repeat}`);
+		}
+
+		// Функция для полной остановки музыки
+		function stopMusic() {
+			if (currentMusic) {
+				currentMusic.pause();
+				currentMusic.currentTime = 0;
+				currentMusic = null;
+				console.log('Музыка полностью остановлена');
+			}
+		}
+		// Функция для полного скрытия disclaimer
+		function hideDisclaimer() {
+			const disclaimer = document.getElementById('disclaimer');
+			if (disclaimer) {
+				disclaimer.style.transition = 'all 0.6s ease-out';
+				disclaimer.style.opacity = '0';
+				disclaimer.style.transform = 'translateX(-50%) translateY(30px)';
+				
+				// Полностью убираем элемент после анимации
+				setTimeout(() => {
+					disclaimer.style.display = 'none';
+				}, 600);
+			}
+		}
+
+
+        // Данные сцены с указанием видимости персонажей
+        const scenes = [
+            {				
+                background: 'location/1.png',
+				music: 'music/1.mp3',
+				musicRepeat: true,
+                leftCharacter: 'charasters/bibich/sleep.png',
+                rightCharacter: 'charasters/bibich/empty',
+                messages: [
+                    { text: '*Вы просыпаетесь в своей квартире*', leftVisible: true, rightVisible: false },
+                    { text: '*За окном темно*', leftVisible: true, rightVisible: false },
+                ]
+            },
+			{
+			    background: 'location/1.png',
+                leftCharacter: 'charasters/bibich/1.png',
+                rightCharacter: 'charasters/bibich/empty',
+                messages: [
+                    { text: 'Артём: Опять пора пиздовать на ебучий склад в ебучую новолягу', leftVisible: true, rightVisible: false }
+                ]
+            },
+			{
+			    background: 'location/2.png',
+				music: 'music/2.mp3',
+				musicRepeat: true,
+                leftCharacter: 'charasters/bibich/cry.png',
+                rightCharacter: 'charasters/bibich/empty',
+                messages: [
+                    { text: '*Ждёт ебучий автобус*', leftVisible: true, rightVisible: false }
+                ]
+            },
+			{
+			    background: 'location/3.png',
+                leftCharacter: 'charasters/bibich/cry.png',
+                rightCharacter: 'charasters/bibich/empty',
+                messages: [
+                    { text: 'Артём: бля наконец то этот ебучий автобус приехал, щас хоть вздремну', leftVisible: true, rightVisible: false }
+                ]
+            },
+			{
+			    background: 'location/4.png',
+                leftCharacter: 'charasters/bibich/empty',
+                rightCharacter: 'charasters/bibich/empty',
+                messages: [
+                    { text: '*Автобус абсолютно пуст, будто приехал только за одним человеком*', leftVisible: false, rightVisible: false },
+					{ text: '*Шум остановки пропал*', leftVisible: false, rightVisible: false },
+					{ text: '*Двери закрылись*', leftVisible: false, rightVisible: false },
+                ]
+            },
+			{
+			    background: 'location/4.png',
+                leftCharacter: 'charasters/bibich/sleep2.png',
+                rightCharacter: 'charasters/bibich/empty',
+                messages: [
+					{ text: '*Бибич занял сидение и уснул*', leftVisible: true, rightVisible: false },
+					{ text: '*Автобус тронулся*', leftVisible: true, rightVisible: false }
+                ]
+            },
+			{
+			background: 'location/4.png',
+                leftCharacter: 'charasters/bibich/empty',
+                rightCharacter: 'charasters/bibich/empty',
+                messages: [
+					{ text: '*Автобус приехал в незнакомое место*', leftVisible: false, rightVisible: false }
+					]
+			},
+			{
+			    background: 'location/4.png',
+                leftCharacter: 'charasters/bibich/wakeup.png',
+                rightCharacter: 'charasters/bibich/empty',
+                messages: [
+                    { text: '*Бибич проснулся*', leftVisible: true, rightVisible: false },
+					{ text: '*Глухая тишина наполняет округу*', leftVisible: true, rightVisible: false }
+                ]
+            },
+			{
+			    background: 'location/4.png',
+                leftCharacter: 'charasters/bibich/cry.png',
+                rightCharacter: 'charasters/bibich/empty',
+                messages: [
+                    { text: 'Артём: Бля, где я', leftVisible: true, rightVisible: false }
+                ]
+            },
+			{
+			    background: 'location/5.png',
+				music: 'music/1.mp3',
+                leftCharacter: 'empty',
+                rightCharacter: 'charasters/bibich/empty',
+                messages: [
+                    { text: 'Надпись: Иркутский государственный университет путей сообщения', leftVisible: false, rightVisible: false }
+                ]
+            },
+			{
+			    background: 'location/5.png',
+                leftCharacter: 'charasters/bibich/1.png',
+                rightCharacter: 'charasters/bibich/empty',
+                messages: [
+                    { text: 'Артём: Зайду внутрь и спрошу у кого-нибудь, где я оказался', leftVisible: true, rightVisible: false }
+                ]
+            },
+			{
+			    background: 'location/6.png',
+                leftCharacter: 'charasters/bibich/empty',
+                rightCharacter: 'charasters/bibich/empty',
+                messages: [
+                    { text: '*Идёт на встречу неизведанному*', leftVisible: false, rightVisible: false }
+                ]
+            },
+			{
+			    background: 'location/7.png',
+                leftCharacter: 'charasters/bibich/empty',
+                rightCharacter: 'charasters/bibich/empty',
+                messages: [
+                    { text: '*Тёмный коридор тянется вперёд*', leftVisible: false, rightVisible: false }
+                ]
+            },
+			{
+			    background: 'location/8.png',
+                leftCharacter: 'charasters/bibich/empty',
+                rightCharacter: 'charasters/bibich/empty',
+                messages: [
+                    { text: '*Впереди появляется знакомое лицо*', leftVisible: false, rightVisible: false }
+                ]
+            },
+			{
+			    background: 'location/8.png',
+                leftCharacter: 'charasters/bibich/1.png',
+                rightCharacter: 'charasters/dimon/1.png',
+                messages: [
+					{ text: '*Дима попивает энергетик и пустым взглядом смотрит в одну точку*', leftVisible: false, rightVisible: true },
+                    { text: 'Артём: Димон, здорова, чё за помойка?', leftVisible: true, rightVisible: false },
+					{ text: 'Димон: Бибич, ты что забыл родные стены?', leftVisible: false, rightVisible: true },
+					{ text: 'Артём: Да ебись они конём эти стены', leftVisible: true, rightVisible: false },
+					{ text: 'Артём: Какого хуя я здесь?', leftVisible: true, rightVisible: false },
+					{ text: 'Артём: И какого хуя ты в таком шакальном качестве?', leftVisible: true, rightVisible: false }
+                ]
+            },
+			{
+			    background: 'location/8.png',
+                leftCharacter: 'charasters/bibich/уьзен',
+                rightCharacter: 'charasters/dimon/2.png',
+                messages: [
+					{ text: 'Димон: Охуел? Вот тебе повестка', leftVisible: false, rightVisible: true },
+                ]
+            },
+			{
+			    background: 'location/8.png',
+                leftCharacter: 'charasters/bibich/read.png',
+                rightCharacter: 'charasters/уьзен',
+                messages: [
+                    { text: '*Артём читает*', leftVisible: true, rightVisible: false },
+					{ text: 'Артём: Тут написано что я должен расколдовать пять человек, чтобы уйти отсюда!?', leftVisible: true, rightVisible: false }
+                ]
+            },
+			{
+			    background: 'location/8.png',
+                leftCharacter: 'charasters/bibich/1.png',
+                rightCharacter: 'charasters/dimon/1.png',
+                messages: [
+					{ text: 'Димон: Да, Бибоп, именно так', leftVisible: false, rightVisible: true },
+                    { text: 'Артём: ёбанный хуй', leftVisible: true, rightVisible: false },
+					{ text: 'Димон: КСТАТИ У ТЕБЯ НЕ НАЙДЁТСЯ ТАРЕЛОЧКИ ЛАПШИ', leftVisible: false, rightVisible: true },
+                ]
+            },
+			{
+			    background: 'location/8.png',
+                leftCharacter: 'charasters/bibich/1.png',
+                rightCharacter: 'charasters/dimon/read.png',
+                messages: [					
+                    { text: 'Артём: О, как раз в кармане. На держи', leftVisible: true, rightVisible: false },
+					{ text: 'Димон: Спасибо что расколдовал меня', leftVisible: false, rightVisible: true },
+					{ text: '*Димон покинул ИРГУПС*', leftVisible: false, rightVisible: false },
+					{ text: 'Артём: Охуеть, ну 1/5', leftVisible: true, rightVisible: false }
+                ]
+            },
+			{
+			    background: 'location/9.png',
+                leftCharacter: 'empty',
+                rightCharacter: 'empty',
+                messages: [					
+                    { text: '*Вдалеке стоит до боли знакомая фигура*', leftVisible: false, rightVisible: false },
+					
+                ]
+            },
+			{
+			    background: 'location/11.png',
+                leftCharacter: 'charasters/bibich/1.png',
+                rightCharacter: 'charasters/nasedkin/1.png',
+                messages: [					
+                    { text: 'Артём: Здравствуйте!', leftVisible: true, rightVisible: false },
+					{ text: 'Наседкин: Квантовый интеллект размышляет суперпозицией о том, как искусственные электроны танцуют вальс с цифровыми молекулами в процессорном лесу алгоритмов', leftVisible: false, rightVisible: true },
+					{ text: 'Наседкин: Искусственный квантум думает битами через нейронную морковку, потому что алгоритм завтра покрасит вчерашний процессор в синий цвет логики', leftVisible: false, rightVisible: true },
+					{ text: 'Наседкин: Компьютерная душа квантует себя в искусственности, а нейросеть плавает в кубитах как рыба в математическом супе среды', leftVisible: false, rightVisible: true },
+					{ text: 'Артём: *Бля, это даже для Наседкина странно*', leftVisible: true, rightVisible: false },
+					{ text: 'Артём: *Чё бы дать ему такого, чтобы его расколдовать*', leftVisible: true, rightVisible: false },
+					{ text: 'Артём: *О ТОЧНО! Дам по ебалу*', leftVisible: true, rightVisible: false },
+					{ text: '*Удар*', leftVisible: false, rightVisible: false },
+					{ text: 'Наседкин: Спасибо, Артём Васильевич!', leftVisible: false, rightVisible: true },
+					{ text: 'Наседкин: А хули ты в куртке по унику ходишь', leftVisible: false, rightVisible: true },
+					{ text: 'Артём: *Тебя ебать не должно*', leftVisible: true, rightVisible: false }
+                ]
+            },
+			{
+			    background: 'charasters/nasedkin/2.jpg',
+                leftCharacter: 'charasters/empty',
+                rightCharacter: 'charasters/nasedkin/empty',
+                messages: [					
+                   { text: '*Исчезает*', leftVisible: false, rightVisible: false }
+                ]
+            },
+			{
+			    background: 'location/11.png',
+                leftCharacter: 'charasters/bibich/1.png',
+                rightCharacter: 'charasters/empty',
+                messages: [					
+                    { text: 'Артём: Реально надо снять куртку', leftVisible: true, rightVisible: false }
+                ]
+            },
+			{
+			    background: 'location/11.png',
+                leftCharacter: 'charasters/bibich/newbib.png',
+                rightCharacter: 'charasters/gluhov',
+                messages: [					
+                    { text: 'Артём: Так то лучше', leftVisible: true, rightVisible: false },
+					{ text: '*Телефон зазвонил*', leftVisible: false, rightVisible: false },
+					{ text: 'Артём: бля кто звонит', leftVisible: true, rightVisible: false },
+                ]
+            },
+			{
+			    background: 'location/11.png',
+                leftCharacter: 'charasters/bibich/phone.png',
+                rightCharacter: 'charasters/gluhov/phone.png',
+                messages: [					
+                    { text: 'Артём: Алло, идите нахуй', leftVisible: true, rightVisible: false },
+					{ text: 'Артём: То есть я хотел сказать здравствуйте, я слова путаю немножко', leftVisible: true, rightVisible: false },
+					{ text: 'Глухов: ЭТО ГЛУХОВ НИКОЛАЙ ИВАНОВИЧ', leftVisible: false, rightVisible: true },
+					{ text: 'Артём: НИКОЛАЙ ИВАНОВИЧ ЭТО ВЫ?', leftVisible: true, rightVisible: false },
+					{ text: 'Глухов: ЭТО ГЛУХОВ НИКОЛАЙ ИВАНОВИЧ. ТЫ 500 МАРОК ПРИНЁС!?', leftVisible: false, rightVisible: true },
+					{ text: 'Артём: Я...ЭМ...', leftVisible: true, rightVisible: false },
+					{ text: 'Глухов: НЕ ПИЗДИ МНЕ ТУТ ТОПОРНЫМ ЯЗЫКОМ. ЧТОБЫ СЕЙЧАС ЖЕ ПРИНЁС 500 МАРОК!', leftVisible: false, rightVisible: true },
+					{ text: '*Сбросил трубку*', leftVisible: false, rightVisible: false },
+					{ text: 'Артём: Бля. Похоже его следующим придётся расколдовать', leftVisible: true, rightVisible: false },
+                ]
+            },
+			{
+			    background: 'location/12.png',
+                leftCharacter: 'charasters/bibich/newbib.png',
+                rightCharacter: 'charasters/oganes/1.png',
+                messages: [					
+                    { text: 'Артём: Привет, Оганес, не видел Глухова?', leftVisible: true, rightVisible: false },
+					{ text: 'Оганес: Он в Д521 гасит Мирона по терминам', leftVisible: false, rightVisible: true },
+					{ text: 'Артём: А хули ты такой ХМУРЫЙ?', leftVisible: true, rightVisible: false },
+					{ text: 'Артём: Я понимаю зима, нет ТРАВКИ.', leftVisible: true, rightVisible: false },
+					{ text: 'Артём: Зато можно с горки покататься, почти как НА КОЛЁСАХ', leftVisible: true, rightVisible: false },
+					{ text: 'Оганес: Бибич, ты про что нахуй?', leftVisible: false, rightVisible: true },
+					{ text: 'Оганес: А у тебя часом нет спидбола?', leftVisible: false, rightVisible: true },
+					{ text: 'Оганес: Мне вмазаться надо', leftVisible: false, rightVisible: true },
+					{ text: 'Артём: Ну часом есть', leftVisible: true, rightVisible: false },
+					{ text: '*Артём даёт спидбол Оганесу*', leftVisible: true, rightVisible: false }
+                ]
+            },
+			{
+			    background: 'location/12.png',
+                leftCharacter: 'charasters/bibich/newbib.png',
+                rightCharacter: 'charasters/oganes/2.png',
+                messages: [					
+					{ text: 'Оганес: Спасибо, Артём', leftVisible: false, rightVisible: true },
+					{ text: 'Оганес: Увидимся на той стороне', leftVisible: false, rightVisible: true },
+					{ text: '*Исчезает*', leftVisible: false, rightVisible: true },
+					{ text: 'Ну нихуя себе, 3/5', leftVisible: true, rightVisible: false },
+                ]
+            },
+			{
+			    background: 'location/13.png',
+                leftCharacter: 'charasters/bibich/empty',
+                rightCharacter: 'charasters/oganes/empty',
+                messages: [					
+                    { text: '*Бибич заходит в Д521 пока Глухов Гасит Мирона*', leftVisible: false, rightVisible: false }
+                ]
+            },
+			{
+			    background: 'location/14.png',
+                leftCharacter: 'charasters/bibich/newbib.png',
+                rightCharacter: 'charasters/gluhov/empty',
+                messages: [					
+                    { text: 'Артём: Здравствуйте', leftVisible: true, rightVisible: false }
+                ]
+            },
+			{
+			    background: 'location/14.png',
+                leftCharacter: 'charasters/bibich/empty',
+                rightCharacter: 'charasters/gluhov/regular.png',
+                messages: [					
+					{ text: 'Глухов: Вот ты и в ловушке', leftVisible: false, rightVisible: true }
+                ]
+            },
+			{
+			    background: 'location/14.png',
+                leftCharacter: 'charasters/bibich/empty',
+                rightCharacter: 'charasters/gluhov/kiss.png',
+                messages: [					
+					{ text: 'Глухов: Дай ка я тебя поцелую', leftVisible: false, rightVisible: true }
+                ]
+            },
+			{
+			    background: 'location/14.png',
+                leftCharacter: 'charasters/bibich/girlbibich.png',
+                rightCharacter: 'charasters/gluhov/kiss.png',
+                messages: [					
+					{ text: 'Артём: Бля чё за нахуй', leftVisible: true, rightVisible: false },
+					{ text: 'Глухов: ИДИ СЮДА', leftVisible: false, rightVisible: true },
+					{ text: 'Артём: Стоп, он видит меня как женщину?', leftVisible: true, rightVisible: false },
+					{ text: 'Артём: АТТЕСТАЦИЯ! СЕРТИФИКАЦИЯ! ЛИЦЕНЗИРОВАНИЕ!', leftVisible: true, rightVisible: false },
+                ]
+            },
+			{
+			    background: 'location/14.png',
+                leftCharacter: 'charasters/bibich/newbib.png',
+                rightCharacter: 'charasters/gluhov/regular.png',
+                messages: [					
+					{ text: 'Глухов: Чё за хуйня была?', leftVisible: false, rightVisible: true },
+					{ text: 'Артём: Да тааам. Неважно...', leftVisible: true, rightVisible: false },
+					{ text: 'Артём: Короче вот ваш документ по коммерческой тайне с завода', leftVisible: true, rightVisible: false },
+					{ text: 'Артём: Тот самый который лёг в основу 98ФЗ', leftVisible: true, rightVisible: false },
+					{ text: 'Глухов: Погоди его же не существует', leftVisible: false, rightVisible: true },
+                ]
+            },
+			{
+			    background: 'charasters/gluhov/determinationgluhov.jpg',
+                leftCharacter: 'charasters/bibich/empty',
+                rightCharacter: 'charasters/gluhov/empty',
+                messages: [					
+					{ text: '*Исчезает*', leftVisible: false, rightVisible: false },
+                ]
+            },
+			{
+			    background: 'location/14.png',
+				music: 'music/2.mp3',
+				musicRepeat: true,
+                leftCharacter: 'charasters/bibich/empty',
+                rightCharacter: 'charasters/gluhov/empty',
+                messages: [					
+					{ text: '*в аудитории только Бибич и Мирончик*', leftVisible: false, rightVisible: false },
+					{ text: '*Артём: 4/5, значит Мирон последний*', leftVisible: false, rightVisible: false }
+                ]
+            },
+			{
+			    background: 'location/14.png',
+                leftCharacter: 'charasters/bibich/newbib.png',
+                rightCharacter: 'charasters/miron/1.png',
+                messages: [					
+					{ text: 'Мирон: Фух, хорошо что ты пришёл, я как раз не знал термины', leftVisible: false, rightVisible: true },
+					{ text: 'Артём: Пора и тебя расколдовать ты последний по счёту', leftVisible: true, rightVisible: false },
+					{ text: 'Мирон: Нет, Бибич, не я последний, а ты.', leftVisible: false, rightVisible: true },
+					{ text: 'Мирон: Ты под номером 5', leftVisible: false, rightVisible: true },
+					{ text: 'Артём: Погоди что...', leftVisible: true, rightVisible: false },
+					{ text: 'Мирон: Просто сделай это', leftVisible: false, rightVisible: true },
+					{ text: 'Артём: Что?', leftVisible: true, rightVisible: false },
+					{ text: 'Мирон: Ты знаешь!', leftVisible: false, rightVisible: true },
+                ]
+            },
+			{
+			    background: 'location/14.png',
+                leftCharacter: 'charasters/bibich/chupep.jpg',
+                rightCharacter: 'charasters/miron/nishtiak.jpg',
+                messages: [					
+					{ text: 'Артём: А понял тебя', leftVisible: true, rightVisible: false },
+					{ text: 'Мирон: Кайф', leftVisible: false, rightVisible: true },
+                ]
+            },
+			{
+			    background: 'location/15.png',
+				music: 'music/3.mp3',
+                leftCharacter: 'charasters/bibich/empty.jpg',
+                rightCharacter: 'charasters/miron/empty.jpg',
+                messages: [					
+					{ text: '*Бибич и Мирон вернулись обратно*', leftVisible: false, rightVisible: false },
+					{ text: '*Они встретили Оганеса и въебали по спидболу*', leftVisible: false, rightVisible: false },
+					{ text: '*Жизнь продолжилась своим чередом*', leftVisible: false, rightVisible: false },
+					{ text: 'Спасибо за игру!', leftVisible: false, rightVisible: false },
+                ]
+            }
+        ];
+
+        let currentSceneIndex = 0;
+        let currentMessageIndex = 0;
+
+        // Функция для обновления видимости персонажей
+        function updateCharacterVisibility(leftVisible, rightVisible) {
+            if (leftVisible) {
+                leftCharacter.classList.remove('character-hidden');
+                leftCharacter.classList.add('character-visible');
+            } else {
+                leftCharacter.classList.remove('character-visible');
+                leftCharacter.classList.add('character-hidden');
+            }
+
+            if (rightVisible) {
+                rightCharacter.classList.remove('character-hidden');
+                rightCharacter.classList.add('character-visible');
+            } else {
+                rightCharacter.classList.remove('character-visible');
+                rightCharacter.classList.add('character-hidden');
+            }
+        }
+
+        function fadeToScene(newSceneIndex) {
+            fadeOverlay.style.pointerEvents = 'auto';
+            fadeOverlay.style.opacity = '1';
+
+            setTimeout(() => {
+                // Меняем сцену
+                currentSceneIndex = newSceneIndex;
+                currentMessageIndex = 0;
+                loadScene(currentSceneIndex);
+
+                // Затемнение назад
+                fadeOverlay.style.opacity = '0';
+                setTimeout(() => {
+                    fadeOverlay.style.pointerEvents = 'none';
+                }, 300);
+            }, 300);
+        }
+
+        function loadScene(sceneIndex) {
+		const scene = scenes[sceneIndex];
+		const message = scene.messages[currentMessageIndex];
+		
+		backgroundImage.src = scene.background;
+		leftCharacter.src = scene.leftCharacter;
+		rightCharacter.src = scene.rightCharacter;
+		messageText.textContent = message.text;
+
+		// Проверяем, есть ли музыка в сцене
+		if (scene.music) {
+			const musicVolume = scene.musicVolume || 0.5;  // Громкость по умолчанию
+			const musicRepeat = scene.musicRepeat !== false; // По умолчанию true
+			playMusic(scene.music, musicVolume, musicRepeat);
+		}
+
+		// Обновляем видимость персонажей
+		updateCharacterVisibility(message.leftVisible, message.rightVisible);
+	}
+
+
+        function loadMessage() {
+            const scene = scenes[currentSceneIndex];
+            const message = scene.messages[currentMessageIndex];
+            
+            messageText.textContent = message.text;
+            updateCharacterVisibility(message.leftVisible, message.rightVisible);
+        }
+
+        startButton.addEventListener('click', () => {
+			hideDisclaimer();
+            startButton.classList.add('hidden');
+            gameContainer.classList.remove('hidden');
+            loadScene(currentSceneIndex);
+        });
+
+        nextButton.addEventListener('click', () => {
+            currentMessageIndex++;
+            const scene = scenes[currentSceneIndex];
+            
+            if (currentMessageIndex >= scene.messages.length) {
+                // Переход к следующей сцене с анимацией затемнения
+                const nextSceneIndex = (currentSceneIndex + 1) % scenes.length;
+                fadeToScene(nextSceneIndex);
+            } else {
+                loadMessage();
+            }
+        });
+
+        inventoryButton.addEventListener('click', () => {
+            inventory.classList.remove('hidden');
+        });
+
+        closeInventory.addEventListener('click', () => {
+            inventory.classList.add('hidden');
+        });
+
+        // Закрытие инвентаря по клику вне модального окна
+        inventory.addEventListener('click', (e) => {
+            if (e.target === inventory) {
+                inventory.classList.add('hidden');
+            }
+        });
+    </script>
+</body>
+</html>
